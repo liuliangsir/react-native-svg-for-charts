@@ -1,0 +1,204 @@
+/**
+ * @file 蜡烛图坐标轴
+ * @author liuliang<liuliang@kavout.com>
+ */
+
+import React, {Component} from 'react';
+import {
+    Circle,
+    G,
+    Path,
+    Text
+} from 'react-native-svg';
+import {fontAdapt} from './utils/Util';
+import _ from 'lodash';
+import pathjs from './Path';
+
+class AxisStruct {
+
+    constructor(scale, options, chartArea, horizontal) {
+        this.scale = scale;
+        this.options = options;
+        this.chartArea = chartArea;
+        this.margin = chartArea.margin;
+        this.horizontal = horizontal;
+    }
+
+    static calcStepSize(range, targetSteps) {
+        const tempStep = range / targetSteps;
+        const mag = Math.floor(Math.log(tempStep) / Math.log(10));
+        const magPow = Math.pow(10, mag);
+        let magMsd = Math.round(tempStep / magPow + 0.5);
+
+        if (magMsd > 5.0) {
+            magMsd = 10.0;
+        }
+        else if (magMsd > 2.0) {
+            magMsd = 5.0;
+        }
+        else if (magMsd > 1.0) {
+            magMsd = 2.0;
+        }
+
+        return magMsd * magPow;
+    }
+
+    static getTickValues(axis, tickCount) {
+        const tickStep = AxisStruct.calcStepSize((axis.maxValue - axis.minValue), tickCount);
+        return _.range(axis.minValue, axis.maxValue + 1, tickStep);
+    }
+
+    axis() {
+        const horizontal = this.horizontal;
+        const xAxis = this.chartArea.x;
+        const yAxis = this.chartArea.y;
+        const currentAxis = horizontal ? xAxis : yAxis;
+        const tickInterval = this.options.tickCount || 10;
+        const ticks = this.options.tickValues !== undefined
+        && this.options.tickValues.length !== 0 ? _.map(this.options.tickValues, function (v) {
+            return v.value;
+        }) : AxisStruct.getTickValues(currentAxis, tickInterval);
+        const fixed = this.options.zeroAxis ? this.scale(0) : horizontal ? yAxis.min : xAxis.min;
+        const start = {x: horizontal ? xAxis.min : fixed, y: horizontal ? fixed : yAxis.min};
+        const end = {x: horizontal ? xAxis.max : fixed, y: horizontal ? fixed : yAxis.max};
+        const tailLength = Number(this.options.tailLength || 10);
+        // console.log(tailLength)
+        const margin = this.margin;
+        if (margin !== undefined) {
+            if (horizontal) {
+                start.x += (margin.left - tailLength) || 0;
+                start.y += margin.top || 0;
+                end.x += (margin.left) || 0;
+                end.y += margin.top || 0;
+            }
+            else {
+                start.x += margin.left || 0;
+                start.y += (margin.top + tailLength) || 0;
+                end.x += margin.left || 0;
+                end.y += (margin.top - tailLength) || 0;
+            }
+        }
+
+        return {
+            item: currentAxis,
+            path: pathjs().moveto(start).lineto(end).closepath(),
+            ticks: ticks,
+            lines: ticks.map((c) => {
+                const lineStart = {
+                    x: horizontal ? this.scale(c) + margin.left : xAxis.min + margin.left,
+                    y: horizontal ? yAxis.min + margin.top : this.scale(c) + margin.top
+                };
+                return pathjs().moveto(lineStart).lineto(
+                    horizontal ? lineStart.x
+                        : xAxis.max + margin.left, horizontal ? yAxis.max + (margin.top - tailLength) : lineStart.y
+                );
+            }, this)
+        };
+    }
+}
+
+export default class Axis extends Component {
+
+    render() {
+        const {
+            chartArea,
+            options,
+            scale
+        } = this.props;
+        const horizontal = options.orient === 'top' || options.orient === 'bottom';
+        const axis = new AxisStruct(scale, options, chartArea, horizontal).axis();
+
+        let textAnchor = 'start';
+        let xy = [0, 0];
+        switch (true) {
+            case options.orient === 'top': {
+                textAnchor = 'middle';
+                xy = [0, -5];
+                break;
+            }
+            case options.orient === 'bottom': {
+                textAnchor = 'middle';
+                xy = [0, 5];
+                break;
+            }
+            case options.orient === 'left': {
+                textAnchor = 'end';
+                xy = [-5, -10];
+                break;
+            }
+            case options.orient === 'right': {
+                textAnchor = 'start';
+                xy = [5, 5];
+                break;
+            }
+        }
+
+        const textStyle = fontAdapt(options.label);
+
+        const ticks = _.map(axis.ticks, function (c, i) {
+            let label = options.labelFunction !== undefined ? options.labelFunction.apply(this, [c]) : c;
+
+            // console.log(label)
+            let scaleBase = isNaN(c) ? i : c;
+            let gxy = horizontal ? [scale(scaleBase), chartArea.y.min] : [chartArea.x.min, scale(scaleBase)];
+            // console.log(gxy)
+            const createText = () => (
+                <Text
+                    x={xy[0]}
+                    y={xy[1]}
+                    {...textStyle}
+                    textAnchor={textAnchor}>
+                    {label}
+                </Text>
+            );
+            const createReturnValue = () => (
+                <G key={i} x={gxy[0]} y={gxy[1]}>
+                    {options.showTicks && <Circle r="2" cx="0" cy="0" stroke="grey" fill="grey" />}
+                    {options.showLabels && createText()}
+                </G>
+            );
+
+            return createReturnValue();
+        });
+
+        const gridLines = options.showLines ? _.map(axis.lines, function (c, i) {
+            return (
+                <Path
+                    key={'gridLines' + i}
+                    d={c.print()}
+                    strokeOpacity={0.5}
+                    stroke="#3E90F0"
+                    fill="none" />
+                );
+        }) : [];
+
+        let offset = {
+            x: chartArea.margin.left * -1,
+            y: chartArea.margin.top * -1
+            // x: 0,
+            // y: 0
+        };
+        // console.log(axis.path.print())
+        const createPath = () => (
+            <Path
+                d={axis.path.print()}
+                strokeOpacity={0.5}
+                stroke="#3E90F0"
+                strokeWidth={3}
+                fill="none" />
+        );
+        const createV = () => (
+            <G>
+                <G x={offset.x} y={offset.y}>
+                    {options.showAxis && createPath()}
+                </G>
+                {ticks}
+                <G x={offset.x} y={offset.y}>
+                    {gridLines}
+                </G>
+            </G>
+        );
+
+        return createV();
+    }
+}
