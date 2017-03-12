@@ -22,6 +22,7 @@ export default function ({
     let minUnset = !min;
     let maxUnset = !max;
     let [offX] = offset;
+    let candleWidth = 0.5;
 
     for (let [i, d] of data.entries()) {
         for (let [j, el] of d.entries()) {
@@ -39,7 +40,7 @@ export default function ({
         }
 
     }
-
+    // console.log(groups);
     let n = data[0].length;
     let scale = linear([min, max], [height, 0]);
     barWidth = barWidth || (width - (n - 1) * gutter) / n;
@@ -55,7 +56,7 @@ export default function ({
         let bottom = 0;
         for (let j = 0, length = d.length, half = length / 2; j < length; j += 2) {
             left = j <  half ? shift : xCenterPoint;
-            right = j < half ? shift + barWidth : xCenterPoint + 1;
+            right = j < half ? shift + barWidth : xCenterPoint + candleWidth;
             top = scale(groups[j][i]);
             bottom = scale(groups[j + 1][i]);
             reactangles.push(

@@ -5,13 +5,9 @@
 
 import _ from 'lodash';
 
-let path = (instructions = []) => {
+export default function path(instructions = []) {
 
-    let push = (arr, el) => {
-        let copy = arr.slice(0, arr.length);
-        copy.push(el);
-        return copy;
-    };
+    let push = (arr, el) => [...arr, el];
 
     let areEqualPoints = ([a1, b1], [a2, b2]) => (a1 === a2) && (b1 === b2);
 
@@ -162,8 +158,4 @@ let path = (instructions = []) => {
             return path(this.instructions().concat(newInstructions));
         }
     });
-};
-
-export default function () {
-    return path();
 }

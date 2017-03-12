@@ -10,18 +10,20 @@ import {
     Path,
     Text
 } from 'react-native-svg';
-import {fontAdapt} from './utils/Util';
+
+import {util} from './utils';
 import _ from 'lodash';
 import pathjs from './Path';
 
 class AxisStruct {
 
-    constructor(scale, options, chartArea, horizontal) {
+    constructor(scale, options, chartArea, horizontal, curves) {
         this.scale = scale;
         this.options = options;
         this.chartArea = chartArea;
         this.margin = chartArea.margin;
         this.horizontal = horizontal;
+        this.curves = curves;
     }
 
     static calcStepSize(range, targetSteps) {
@@ -54,7 +56,7 @@ class AxisStruct {
         const yAxis = this.chartArea.y;
         const currentAxis = horizontal ? xAxis : yAxis;
         const tickInterval = this.options.tickCount || 10;
-        const ticks = this.options.tickValues !== undefined
+        const ticks = util.isSetValue(this.options.tickValues)
         && this.options.tickValues.length !== 0 ? _.map(this.options.tickValues, function (v) {
             return v.value;
         }) : AxisStruct.getTickValues(currentAxis, tickInterval);
@@ -62,9 +64,9 @@ class AxisStruct {
         const start = {x: horizontal ? xAxis.min : fixed, y: horizontal ? fixed : yAxis.min};
         const end = {x: horizontal ? xAxis.max : fixed, y: horizontal ? fixed : yAxis.max};
         const tailLength = Number(this.options.tailLength || 10);
-        // console.log(tailLength)
         const margin = this.margin;
-        if (margin !== undefined) {
+
+        if (util.isSetValue(margin)) {
             if (horizontal) {
                 start.x += (margin.left - tailLength) || 0;
                 start.y += margin.top || 0;
@@ -78,14 +80,14 @@ class AxisStruct {
                 end.y += (margin.top - tailLength) || 0;
             }
         }
-
+        // console.log(this.curves)
         return {
             item: currentAxis,
             path: pathjs().moveto(start).lineto(end).closepath(),
             ticks: ticks,
             lines: ticks.map((c) => {
                 const lineStart = {
-                    x: horizontal ? this.scale(c) + margin.left : xAxis.min + margin.left,
+                    x: horizontal ? this.curves[c].centroid + margin.left : xAxis.min + margin.left,
                     y: horizontal ? yAxis.min + margin.top : this.scale(c) + margin.top
                 };
                 return pathjs().moveto(lineStart).lineto(
@@ -103,50 +105,57 @@ export default class Axis extends Component {
         const {
             chartArea,
             options,
-            scale
+            scale,
+            curves
         } = this.props;
-        const horizontal = options.orient === 'top' || options.orient === 'bottom';
-        const axis = new AxisStruct(scale, options, chartArea, horizontal).axis();
+
+        const horizontal = {top: true, bottom: true}[options.orient];
+        const axis = new AxisStruct(scale, options, chartArea, horizontal, curves).axis();
 
         let textAnchor = 'start';
         let xy = [0, 0];
-        switch (true) {
-            case options.orient === 'top': {
+        switch (options.orient) {
+            case 'top': {
                 textAnchor = 'middle';
                 xy = [0, -5];
                 break;
             }
-            case options.orient === 'bottom': {
+            case 'bottom': {
                 textAnchor = 'middle';
                 xy = [0, 5];
                 break;
             }
-            case options.orient === 'left': {
+            case 'left': {
                 textAnchor = 'end';
                 xy = [-5, -10];
                 break;
             }
-            case options.orient === 'right': {
+            case 'right': {
                 textAnchor = 'start';
                 xy = [5, 5];
                 break;
             }
         }
 
-        const textStyle = fontAdapt(options.label);
+        const textStyle = util.fontAdapt(options.label);
 
         const ticks = _.map(axis.ticks, function (c, i) {
-            let label = options.labelFunction !== undefined ? options.labelFunction.apply(this, [c]) : c;
-
-            // console.log(label)
+            let label = horizontal ? curves[c].item[0].name
+                : util.isSetValue(options.labelFunction) ? options.labelFunction.call(this, c) : c;
+            let {length} = axis.ticks;
             let scaleBase = isNaN(c) ? i : c;
-            let gxy = horizontal ? [scale(scaleBase), chartArea.y.min] : [chartArea.x.min, scale(scaleBase)];
-            // console.log(gxy)
+            let gxy = horizontal ? [curves[c].centroid, chartArea.y.min] : [chartArea.x.min, scale(scaleBase)];
+
             const createText = () => (
                 <Text
-                    x={xy[0]}
-                    y={xy[1]}
-                    {...textStyle}
+                    x={horizontal ? 0 : xy[0]}
+                    y={horizontal ? 0 : xy[1]}
+                    fontFamily={textStyle.fontFamily}
+                    fontSize={textStyle.fontSize}
+                    fontWeight={textStyle.fontWeight}
+                    fontStyle={textStyle.fontStyle}
+                    fill={options.isSetAxisYLabelFillFunction ? options.isSetAxisYLabelFillFunction(i, length)
+                        : textStyle.fill}
                     textAnchor={textAnchor}>
                     {label}
                 </Text>
@@ -161,30 +170,28 @@ export default class Axis extends Component {
             return createReturnValue();
         });
 
-        const gridLines = options.showLines ? _.map(axis.lines, function (c, i) {
+        const gridlines = options.showLines ? _.map(axis.lines, function (c, i) {
             return (
                 <Path
                     key={'gridLines' + i}
                     d={c.print()}
-                    strokeOpacity={0.5}
-                    stroke="#3E90F0"
+                    stroke="#EDEDED"
+                    strokeWidth={1}
                     fill="none" />
                 );
         }) : [];
-
         let offset = {
             x: chartArea.margin.left * -1,
             y: chartArea.margin.top * -1
             // x: 0,
             // y: 0
         };
-        // console.log(axis.path.print())
+
         const createPath = () => (
             <Path
                 d={axis.path.print()}
-                strokeOpacity={0.5}
-                stroke="#3E90F0"
-                strokeWidth={3}
+                stroke="#EDEDED"
+                strokeWidth={1}
                 fill="none" />
         );
         const createV = () => (
@@ -194,7 +201,7 @@ export default class Axis extends Component {
                 </G>
                 {ticks}
                 <G x={offset.x} y={offset.y}>
-                    {gridLines}
+                    {gridlines}
                 </G>
             </G>
         );

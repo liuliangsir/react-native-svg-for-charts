@@ -15,13 +15,9 @@ import Svg, {
     Use
 } from 'react-native-svg';
 import {
-    Colors,
-    Options,
-    fontAdapt,
-    cyclic,
-    color,
-    identity
-} from './utils/Util';
+    util,
+    option
+} from './utils';
 import _ from 'lodash';
 import Axis from './Axis';
 import bar from './Bar';
@@ -77,23 +73,21 @@ export default class CandleChart extends Component {
     }
     getFillAndStrokeInfo(i) {
         return {
-            fill: i & 1 ? '#b5d2c1' : '#ff8080',
-            stroke: '#000000',
-            strokeWidth: 1
+            fill: i & 1 ? '#009900' : '#E93030',
+            stroke: i & 1 ? '#009900' : '#E93030',
+            strokeWidth: 0.5
         };
     }
-    getMaxAndMin(values, scale) {
-        const axisY = this.props.options.axisY;
-        let maxValue = axisY.max || 0;
-        let minValue = axisY.min || 0;
-        let max = _.max(values);
-        if (max > maxValue) {
-            maxValue = max;
-        }
+    getRange(values, scale) {
+        let {axisY: {max: maxValue = 0, minValue = 0}} = this.props.options;
 
-        let min = _.min(values);
-        if (min < minValue) {
-            minValue = min;
+        for (let value of values) {
+            if (value > maxValue) {
+                maxValue = value;
+            }
+            else if (value < minValue) {
+                minValue = value;
+            }
         }
 
         return {
@@ -113,8 +107,9 @@ export default class CandleChart extends Component {
             );
         }
 
-        let options = new Options(this.props);
-        let accessor = this.props.accessor || identity(this.props.accessorKey);
+        let options = option(this.props);
+        let accessor = this.props.accessor || util.identity(this.props.accessorKey);
+
         let chartConfig = {
             gutter: this.props.options.gutter || 10,
             width: options.chartWidth,
@@ -122,6 +117,7 @@ export default class CandleChart extends Component {
             accessor: accessor,
             barWidth: this.props.options.barWidth
         };
+
         let chartAreaConfig = {
             x: {
                 minValue: 0,
@@ -131,35 +127,28 @@ export default class CandleChart extends Component {
             },
             margin: options.margin
         };
+
         let stockChart = bar(Object.assign({
             data: this.props.data.stock,
             min: this.props.options.axisY.min || undefined,
             max: this.props.options.axisY.max || undefined
         }, chartConfig));
+
         let volumeChart = bar(Object.assign({
             data: this.props.data.volume
         }, chartConfig));
+
         let stockValues = stockChart.curves.map((curve) => accessor(minOrMax(curve.item, (v1, v2) => v2.v - v1.v)));
+
         let volumeValues = volumeChart.curves.map((curve) => accessor(minOrMax(curve.item, (v1, v2) => v2.v - v1.v)));
+
         let stockChartArea = Object.assign({
-            y: this.getMaxAndMin(stockValues, stockChart.scale)
+            y: this.getRange(stockValues, stockChart.scale)
         }, chartAreaConfig);
         let volumeChartArea = Object.assign({
-            y: this.getMaxAndMin(volumeValues, volumeChart.scale)
+            y: this.getRange(volumeValues, volumeChart.scale)
         }, chartAreaConfig);
-        let textStyle = fontAdapt(options.axisX.label);
-        let createText = (curve, chartArea, textStyle) => (
-                <G x={0} y={0}>
-                    <Text
-                        {...textStyle}
-                        x={curve.centroid}
-                        y={chartArea.y.min}
-                        rotate={0}
-                        textAnchor="middle">
-                        {curve.item[0].name}
-                    </Text>
-                </G>
-        );
+
         let stockLines = (
                 stockChart.curves.map(function (curve, i) {
                     let {
@@ -178,14 +167,11 @@ export default class CandleChart extends Component {
                                     strokeWidth={strokeWidth}
                                 />)
                             }
-                            {options.axisX.showLabels
-                                && options.axisX.tickValues.includes(i)
-                                && createText(curve, stockChartArea, textStyle)
-                            }
                         </G>
                     );
                 }, this)
             );
+
         let volumeLines = (
                 volumeChart.curves.map(function (curve, i) {
                     let {
@@ -204,10 +190,6 @@ export default class CandleChart extends Component {
                                     strokeWidth={strokeWidth}
                                 />)
                             }
-                            {options.axisX.showLabels
-                                && options.axisX.tickValues.includes(i)
-                                && createText(curve, volumeChartArea, textStyle)
-                            }
                         </G>
                     );
                 }, this)
@@ -218,8 +200,31 @@ export default class CandleChart extends Component {
                         <G x={options.margin.left} y={options.margin.top}>
                             <Axis
                                 scale={stockChart.scale}
-                                options={Object.assign({}, options.axisY)}
+                                options={Object.assign({
+                                    isSetAxisYLabelFillFunction(i, length) {
+                                        return i >= length / 2 ? '#009900' : '#FF3030';
+                                    }
+                                }, options.axisY)}
                                 chartArea={stockChartArea}
+                            />
+                            <Axis
+                                scale={stockChart.scale}
+                                options={Object.assign({
+                                    min: 0,
+                                    max: 60,
+                                    tickValues: [
+                                        {value: 1},
+                                        {value: 10},
+                                        {value: 19},
+                                        {value: 28},
+                                        {value: 37},
+                                        {value: 46},
+                                        {value: 55}
+                                    ],
+                                    showLabels: false
+                                }, options.axisX)}
+                                chartArea={stockChartArea}
+                                curves={stockChart.curves}
                             />
                             {stockLines}
                         </G>
@@ -228,8 +233,31 @@ export default class CandleChart extends Component {
                         <G x={options.margin.left} y={options.margin.top}>
                             <Axis
                                 scale={volumeChart.scale}
-                                options={Object.assign({}, options.axisY)}
+                                options={Object.assign({
+                                    labelFunction(label) {
+                                        return String(label).slice(0, 2);
+                                    }
+                                }, options.axisY)}
                                 chartArea={volumeChartArea}
+                            />
+                            <Axis
+                                scale={volumeChart.scale}
+                                options={Object.assign({
+                                    min: 0,
+                                    max: 60,
+                                    tickValues: [
+                                        {value: 1},
+                                        {value: 10},
+                                        {value: 19},
+                                        {value: 28},
+                                        {value: 37},
+                                        {value: 46},
+                                        {value: 55}
+                                    ],
+                                    showLabels: true
+                                }, options.axisX)}
+                                chartArea={volumeChartArea}
+                                curves={volumeChart.curves}
                             />
                             {volumeLines}
                         </G>
