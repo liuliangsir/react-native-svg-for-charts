@@ -27,14 +27,13 @@ export default function (props) {
         max: 0,
         width: 400,
         height: 400,
-        get chartWidth() {
-            return this.width;
-        },
-        get chartHeight() {
-            return this.height;
-        }
+        chartWidth: 0,
+        chartHeight: 0
     }, options, props);
 
+    // 更新chartWidth以及chartHeight
+    option.chartHeight = option.height;
+    option.chartWidth = option.width;
     // 更新width以及height
     option.width = option.margin.left + option.margin.right + option.chartWidth;
     option.height = option.margin.top + option.margin.bottom + option.chartHeight;

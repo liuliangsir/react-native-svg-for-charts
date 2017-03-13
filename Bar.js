@@ -40,7 +40,7 @@ export default function ({
         }
 
     }
-    // console.log(groups);
+
     let n = data[0].length;
     let scale = linear([min, max], [height, 0]);
     barWidth = barWidth || (width - (n - 1) * gutter) / n;

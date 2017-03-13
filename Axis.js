@@ -80,20 +80,22 @@ class AxisStruct {
                 end.y += (margin.top - tailLength) || 0;
             }
         }
-        // console.log(this.curves)
+
         return {
             item: currentAxis,
             path: pathjs().moveto(start).lineto(end).closepath(),
             ticks: ticks,
-            lines: ticks.map((c) => {
+            lines: ticks.map((c, i) => {
+                const scaleBase = isNaN(c) ? i : c;
                 const lineStart = {
                     x: horizontal ? this.curves[c].centroid + margin.left : xAxis.min + margin.left,
-                    y: horizontal ? yAxis.min + margin.top : this.scale(c) + margin.top
+                    y: horizontal ? yAxis.min + margin.top : this.scale(scaleBase) + margin.top
                 };
-                return pathjs().moveto(lineStart).lineto(
-                    horizontal ? lineStart.x
-                        : xAxis.max + margin.left, horizontal ? yAxis.max + (margin.top - tailLength) : lineStart.y
-                );
+                const lineEnd = {
+                    x: horizontal ? lineStart.x : xAxis.max + margin.left,
+                    y: horizontal ? yAxis.max + (margin.top - tailLength) : lineStart.y
+                };
+                return pathjs().moveto(lineStart).lineto(lineEnd);
             }, this)
         };
     }
