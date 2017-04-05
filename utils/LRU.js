@@ -80,6 +80,11 @@ class LinkedList {
         this._len--;
     }
 
+    clear() {
+        this.head = this.tail = null;
+        this._len = 0;
+    }
+
     /**
      * Length of the list
      *

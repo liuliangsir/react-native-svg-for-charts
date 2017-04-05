@@ -18,6 +18,7 @@ import {
     util,
     option
 } from './utils';
+import {CandleItem} from './components';
 import _ from 'lodash';
 import Axis from './Axis';
 import bar from './Bar';
@@ -78,18 +79,24 @@ export default class CandleChart extends Component {
             strokeWidth: 0.5
         };
     }
-    getRange(values, scale) {
+    getRange(values, scale, {min = -Infinity, max = Infinity} = {}) {
         let {axisY: {max: maxValue = 0, minValue = 0}} = this.props.options;
+        let isEqualInfinity = (a, b) => a === Infinity && b === -Infinity;
 
-        for (let value of values) {
-            if (value > maxValue) {
-                maxValue = value;
-            }
-            else if (value < minValue) {
-                minValue = value;
+        if (isEqualInfinity(max, min)) {
+            for (let value of values) {
+                if (value > maxValue) {
+                    maxValue = value;
+                }
+                else if (value < minValue) {
+                    minValue = value;
+                }
             }
         }
-
+        else {
+            minValue = min;
+            maxValue = max;
+        }
         return {
             minValue: minValue,
             maxValue: maxValue,
@@ -128,22 +135,28 @@ export default class CandleChart extends Component {
             margin: options.margin
         };
 
+        let stockChartYAxis = {
+            min: 20,
+            max: 40
+        };
+
         let stockChart = bar(Object.assign({
             data: this.props.data.stock,
             min: this.props.options.axisY.min || undefined,
             max: this.props.options.axisY.max || undefined
-        }, chartConfig));
+        }, stockChartYAxis, chartConfig));
 
         let volumeChart = bar(Object.assign({
-            data: this.props.data.volume
+            data: this.props.data.volume,
+            min: this.props.options.axisY.min || undefined,
+            max: this.props.options.axisY.max || undefined
         }, chartConfig));
 
         let stockValues = stockChart.curves.map((curve) => accessor(minOrMax(curve.item, (v1, v2) => v2.v - v1.v)));
-
         let volumeValues = volumeChart.curves.map((curve) => accessor(minOrMax(curve.item, (v1, v2) => v2.v - v1.v)));
 
         let stockChartArea = Object.assign({
-            y: this.getRange(stockValues, stockChart.scale)
+            y: this.getRange(stockValues, stockChart.scale, stockChartYAxis)
         }, chartAreaConfig);
         let volumeChartArea = Object.assign({
             y: this.getRange(volumeValues, volumeChart.scale)
@@ -196,72 +209,64 @@ export default class CandleChart extends Component {
             );
 
         return (<View>
-                    <Svg width={options.width} height={options.height}>
-                        <G x={options.margin.left} y={options.margin.top}>
-                            <Axis
-                                scale={stockChart.scale}
-                                options={Object.assign({
-                                    isSetAxisYLabelFillFunction(i, length) {
-                                        return i >= length / 2 ? '#009900' : '#FF3030';
-                                    }
-                                }, options.axisY)}
-                                chartArea={stockChartArea}
-                            />
-                            <Axis
-                                scale={stockChart.scale}
-                                options={Object.assign({
-                                    min: 0,
-                                    max: 60,
-                                    tickValues: [
-                                        {value: 1},
-                                        {value: 10},
-                                        {value: 19},
-                                        {value: 28},
-                                        {value: 37},
-                                        {value: 46},
-                                        {value: 55}
-                                    ],
-                                    showLabels: false
-                                }, options.axisX)}
-                                chartArea={stockChartArea}
-                                curves={stockChart.curves}
-                            />
-                            {stockLines}
-                        </G>
-                    </Svg>
-                    <Svg width={options.width} height={options.height}>
-                        <G x={options.margin.left} y={options.margin.top}>
-                            <Axis
-                                scale={volumeChart.scale}
-                                options={Object.assign({
-                                    labelFunction(label) {
-                                        return String(label).slice(0, 2);
-                                    }
-                                }, options.axisY)}
-                                chartArea={volumeChartArea}
-                            />
-                            <Axis
-                                scale={volumeChart.scale}
-                                options={Object.assign({
-                                    min: 0,
-                                    max: 60,
-                                    tickValues: [
-                                        {value: 1},
-                                        {value: 10},
-                                        {value: 19},
-                                        {value: 28},
-                                        {value: 37},
-                                        {value: 46},
-                                        {value: 55}
-                                    ],
-                                    showLabels: true
-                                }, options.axisX)}
-                                chartArea={volumeChartArea}
-                                curves={volumeChart.curves}
-                            />
-                            {volumeLines}
-                        </G>
-                    </Svg>
+                    <CandleItem
+                        options={options}
+                        chart={stockChart}
+                        chartArea={stockChartArea}
+                        lines={stockLines}
+                        axisYOptions={Object.assign({
+                            isSetAxisYLabelFillFunction(i, length) {
+                                return i >= length / 2 ? '#009900' : '#FF3030';
+                            },
+                            ...stockChartYAxis,
+                            tickValues: [
+                                {value: 20},
+                                {value: 25},
+                                {value: 30},
+                                {value: 35},
+                                {value: 40}
+                            ]
+                        }, options.axisY)}
+                        axisXOptions={Object.assign({
+                            min: 0,
+                            max: 60,
+                            tickValues: [
+                                {value: 1},
+                                {value: 10},
+                                {value: 19},
+                                {value: 28},
+                                {value: 37},
+                                {value: 46},
+                                {value: 55}
+                            ],
+                            showLabels: false
+                        }, options.axisX)}
+                    />
+                    {/* <CandleItem
+                        options={options}
+                        chart={volumeChart}
+                        chartArea={volumeChartArea}
+                        lines={volumeLines}
+                        axisYOptions={Object.assign({
+                            labelFunction(label) {
+                                return String(label).slice(0, 2);
+                            }
+                        }, options.axisY)}
+                        axisXOptions={Object.assign({
+                            min: 0,
+                            max: 60,
+                            tickValues: [
+                                {value: 1},
+                                {value: 10},
+                                {value: 19},
+                                {value: 28},
+                                {value: 37},
+                                {value: 46},
+                                {value: 55}
+                            ],
+                            showLabels: true
+                        }, options.axisX)}
+                    /> */}
                 </View>);
     }
 }
